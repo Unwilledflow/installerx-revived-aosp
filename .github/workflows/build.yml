@@ -33,11 +33,18 @@ jobs:
           [[ "$(gh api "repos/$GITHUB_REPOSITORY" --jq .visibility)" == public ]] || { echo 'Magisk needs a public update source.'; exit 1; }
           TAG=$(gh api "repos/$UPSTREAM/releases/latest" --jq 'select(.draft == false and .prerelease == false) | .tag_name')
           [[ "$TAG" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo 'Unexpected stable tag format'; exit 1; }
+          HEAD=$(git rev-parse HEAD)
+          RELEASE=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq 'select(.draft == false and .prerelease == false) | .target_commitish' 2>/dev/null || true)
+          rebuild=false
           if [[ -f update.json ]] && [[ "$(jq -r .version update.json)" == "$TAG" ]]; then
-            echo "Already built $TAG"
-            exit 0
+            if [[ "$RELEASE" == "$HEAD" ]]; then
+              echo "Already built $TAG at $HEAD"
+              exit 0
+            fi
+            [[ -n "$RELEASE" ]] && rebuild=true
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "rebuild=$rebuild" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout v7
         if: steps.upstream.outputs.tag != ''
@@ -143,10 +150,15 @@ jobs:
           zip="InstallerX-Revived-AOSP-$TAG.zip"
           (cd "$out" && zip -qr9 "$RUNNER_TEMP/$zip" .)
           unzip -tq "$RUNNER_TEMP/$zip"
+          grep -Fq '# NoMount resolves the module' "$out/customize.sh" || { echo 'NoMount-compatible installer guard missing'; exit 1; }
+          ! grep -Eq 'pm path|expected AOSP system APK path is absent' "$out/customize.sh" || { echo 'Installer still checks the unmounted system APK'; exit 1; }
 
           printf 'Stable build of [InstallerX Revived %s](https://github.com/%s/releases/tag/%s).\n\n[APK source at upstream commit](https://github.com/%s/tree/%s). Build changes: applicationId, versionCode and signing key. Inspect this workflow and module source in this repository.\n' \
             "$TAG" "$UPSTREAM" "$TAG" "$UPSTREAM" "$(git -C upstream rev-parse HEAD)" > changelog.md
-          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft > "$RUNNER_TEMP/release-state" 2>/dev/null; then
+          if [[ "${{ steps.upstream.outputs.rebuild }}" == true ]]; then
+            gh release upload "$TAG" "$RUNNER_TEMP/$zip" -R "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "InstallerX Revived $TAG" --notes-file changelog.md --latest
+          elif gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft > "$RUNNER_TEMP/release-state" 2>/dev/null; then
             echo 'Release already exists but is not in update.json. Inspect it before retrying; nothing was overwritten.'
             exit 1
           else
