@@ -1,0 +1,5 @@
+*.jks
+*.keystore
+*.p12
+signer.sha256
+keystore.properties
