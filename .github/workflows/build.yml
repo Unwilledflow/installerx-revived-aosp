@@ -54,8 +54,9 @@ jobs:
           distribution: zulu
           java-version: '25'
 
-      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - name: Install Android SDK packages
         if: steps.upstream.outputs.tag != ''
+        run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0'
 
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # gradle/actions v6
         if: steps.upstream.outputs.tag != ''
@@ -99,7 +100,6 @@ jobs:
           [[ $(grep -cF 'versionName = project.getBaseVersionName()' "$file") == 1 ]] || { echo 'Upstream versionName logic changed'; exit 1; }
           sed -i "s/versionCode = project.getGitCommitCount()/versionCode = $code/" "$file"
           sed -i 's/versionName = project.getBaseVersionName()/versionName = providers.gradleProperty("VERSION_NAME").get()/' "$file"
-          sdkmanager 'build-tools;37.0.0'
           (cd upstream && bash ./gradlew assembleStableRelease -PAPP_ID="$APP_ID" -PVERSION_NAME="$TAG")
           mapfile -d '' -t apks < <(find upstream/app/build/outputs/apk -type f -ipath '*/stable/release/*.apk' -print0)
           [[ ${#apks[@]} == 1 ]] || { echo 'Expected exactly one stable release APK'; exit 1; }
