@@ -65,6 +65,7 @@ jobs:
 
       - name: Build and verify signed APK
         if: steps.upstream.outputs.tag != ''
+        timeout-minutes: 90
         env:
           TAG: ${{ steps.upstream.outputs.tag }}
           GITHUB_ACTOR: ${{ github.repository_owner }}
@@ -91,10 +92,7 @@ jobs:
           unset SIGNING_KEY_STORE_BASE64
           keytool -exportcert -keystore "$KEYSTORE_FILE" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" -file "$RUNNER_TEMP/expected.der"
           read -r expected _ < <(sha256sum "$RUNNER_TEMP/expected.der")
-          if [[ -f signer.sha256 ]]; then
-            [[ "$(< signer.sha256)" == "$expected" ]] || { echo 'Signing key changed since previous release'; exit 1; }
-          fi
-          printf '%s\n' "$expected" > "$RUNNER_TEMP/signer.sha256"
+          [[ -f signer.sha256 && "$(< signer.sha256)" == "$expected" ]] || { echo 'Signing certificate does not match signer.sha256'; exit 1; }
 
           file=upstream/app/build.gradle.kts
           [[ $(grep -cF 'versionCode = project.getGitCommitCount()' "$file") == 1 ]] || { echo 'Upstream versionCode logic changed'; exit 1; }
@@ -115,6 +113,7 @@ jobs:
 
       - name: Pack, publish, and update Magisk feed
         if: steps.upstream.outputs.tag != ''
+        timeout-minutes: 10
         env:
           TAG: ${{ steps.upstream.outputs.tag }}
           GH_TOKEN: ${{ github.token }}
@@ -150,7 +149,6 @@ jobs:
           else
             gh release create "$TAG" "$RUNNER_TEMP/$zip" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "InstallerX Revived $TAG" --notes-file changelog.md --latest
           fi
-          cp "$RUNNER_TEMP/signer.sha256" signer.sha256
           jq -n --arg v "$TAG" --argjson c "$code" \
             --arg z "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$zip" \
             --arg l "$feed/changelog.md" '{version:$v,versionCode:$c,zipUrl:$z,changelog:$l}' > update.json
