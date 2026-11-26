@@ -13,6 +13,6 @@
 
 ## 构建
 
-[构建工作流](.github/workflows/build.yml)从上游稳定标签检出源码，验证包名、版本号和 APK 签名，再发布 Release 和 Magisk 的 `update.json`。[签名指纹](signer.sha256)用于校验后续构建沿用同一密钥。签名凭据从 Actions Secrets 读取。当前稳定版使用公开 Maven 依赖。若将来的稳定版需要 GitHub Packages，可设置 `MIUIX_PACKAGES_TOKEN`（classic PAT，仅 `read:packages`）。
+[构建工作流](.github/workflows/build.yml)从上游稳定标签检出源码，验证包名、版本号和 APK 签名，再发布 Release 和 Magisk 的 `update.json`。[签名指纹](signer.sha256)用于校验后续构建沿用同一密钥。签名凭据从 Actions Secrets 读取。若上游日后需要私有 GitHub Packages 依赖，请在 workflow 中添加一个限定为 `read:packages` 的 Token Secret；不要把令牌直接写进配置。
 
 模块结构基于 ByteJuno，2026-11-26 改为跟随稳定版、由本仓库签名和发布，增加刷入路径检查并移除了卸载时的应用数据清除。按 GPL-3.0 发布。[ByteJuno 原始版本](https://github.com/ByteJuno/InstallerX-Revived-AOSP-Module/tree/0f0c53dda33f1da7146471f7e157b3d35c885699) · [许可证](LICENSE)
