@@ -92,8 +92,9 @@ jobs:
           done
           last=0
           if [[ -f update.json ]]; then last=$(jq -er '.versionCode | numbers' update.json); fi
-          code=$(( VERSION_CODE_OFFSET + $(git -C upstream rev-list --count HEAD) ))
-          [[ "$code" -gt "$last" && "$code" -le 2100000000 ]] || { echo 'Invalid or non-increasing versionCode'; exit 1; }
+          base=$(( VERSION_CODE_OFFSET + $(git -C upstream rev-list --count HEAD) ))
+          code=$(( base > last ? base : last + 1 ))
+          [[ "$code" -le 2100000000 ]] || { echo 'Invalid versionCode'; exit 1; }
           printf '%s\n' "$code" > "$RUNNER_TEMP/module-code"
 
           export KEYSTORE_FILE
